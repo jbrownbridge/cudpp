@@ -175,7 +175,7 @@ void radixSortStep(uint *keys,
 
     CUT_CHECK_ERROR("findRadixOffsets");
 
-    cudppScanDispatch(plan->m_countersSum, plan->m_counters, 16*numBlocks2, 1, plan->m_scanPlan);
+    cudppScanDispatch(plan->m_countersSum, plan->m_counters, 16*numBlocks2, 1, 0, plan->m_scanPlan);
 
     if (fullBlocks)
     {
@@ -560,7 +560,7 @@ void radixSortStepKeysOnly(uint *keys,
 
     }
 
-    cudppScanDispatch(plan->m_countersSum, plan->m_counters, 16*numBlocks2, 1, plan->m_scanPlan);
+    cudppScanDispatch(plan->m_countersSum, plan->m_counters, 16*numBlocks2, 1, 0, plan->m_scanPlan);
 
     if (fullBlocks)
     {

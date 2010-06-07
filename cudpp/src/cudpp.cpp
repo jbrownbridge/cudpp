@@ -85,19 +85,21 @@
  * @param[out] d_out output of scan, in GPU memory
  * @param[in] d_in input to scan, in GPU memory
  * @param[in] numElements number of elements to scan
+ * @param[in[ stream stream to execute kernel on
  * 
  * @see cudppPlan, cudppDestroyPlan
  */
 CUDPP_DLL
-CUDPPResult cudppScan(CUDPPHandle planHandle,
-                      void        *d_out, 
-                      const void  *d_in, 
-                      size_t      numElements)
+CUDPPResult cudppScan(CUDPPHandle        planHandle,
+                      void               *d_out, 
+                      const void         *d_in, 
+                      size_t             numElements,
+                      const cudaStream_t stream)
 {
     CUDPPScanPlan *plan = (CUDPPScanPlan*)CUDPPPlanManager::GetPlan(planHandle);
     if (plan != NULL)
     {
-        cudppScanDispatch(d_out, d_in, numElements, 1, plan);
+        cudppScanDispatch(d_out, d_in, numElements, 1, stream, plan);
         return CUDPP_SUCCESS;
     }
     else
@@ -147,21 +149,23 @@ CUDPPResult cudppScan(CUDPPHandle planHandle,
  * @param[in] d_idata input data to segmented scan, in GPU memory
  * @param[in] d_iflags input flags to segmented scan, in GPU memory
  * @param[in] numElements number of elements to perform segmented scan on
+ * @param[in] stream the stream to execute the kernel on
  * 
  * @see cudppPlan, cudppDestroyPlan
- */
+ */ 
 CUDPP_DLL
 CUDPPResult cudppSegmentedScan(CUDPPHandle        planHandle,
                                void               *d_out, 
                                const void         *d_idata,
                                const unsigned int *d_iflags,
-                               size_t             numElements)
+                               size_t             numElements,
+                               const cudaStream_t stream)
 {
     CUDPPSegmentedScanPlan *plan = 
         (CUDPPSegmentedScanPlan*)CUDPPPlanManager::GetPlan(planHandle);
     if (plan != NULL)
     {
-        cudppSegmentedScanDispatch(d_out, d_idata, d_iflags, numElements, plan);
+        cudppSegmentedScanDispatch(d_out, d_idata, d_iflags, numElements, stream, plan);
         return CUDPP_SUCCESS;
     }
     else
@@ -193,16 +197,17 @@ CUDPPResult cudppSegmentedScan(CUDPPHandle        planHandle,
  * @see cudppScan, cudppPlan
  */
 CUDPP_DLL
-CUDPPResult cudppMultiScan(CUDPPHandle planHandle,
-                            void       *d_out, 
-                            const void *d_in, 
-                            size_t     numElements,
-                            size_t     numRows)
+CUDPPResult cudppMultiScan(CUDPPHandle         planHandle,
+                            void               *d_out, 
+                            const void         *d_in, 
+                            size_t             numElements,
+                            size_t             numRows,
+                            const cudaStream_t stream)
 {
     CUDPPScanPlan *plan = (CUDPPScanPlan*)CUDPPPlanManager::GetPlan(planHandle);
     if (plan != NULL)
     {
-        cudppScanDispatch(d_out, d_in, numElements, numRows, plan);
+        cudppScanDispatch(d_out, d_in, numElements, numRows, stream, plan);
         return CUDPP_SUCCESS;
     }
     else
@@ -245,6 +250,7 @@ CUDPPResult cudppMultiScan(CUDPPHandle planHandle,
  * @param[in] d_in input to compact
  * @param[in] d_isValid which elements in d_in are valid
  * @param[in] numElements number of elements in d_in
+ * @param[in] stream the stream to execute the kernel on
  */
 CUDPP_DLL
 CUDPPResult cudppCompact(CUDPPHandle        planHandle,
@@ -252,13 +258,14 @@ CUDPPResult cudppCompact(CUDPPHandle        planHandle,
                          size_t             *d_numValidElements,
                          const void         *d_in, 
                          const unsigned int *d_isValid,
-                         size_t             numElements)
+                         size_t             numElements,
+                         const cudaStream_t stream)
 {
     CUDPPCompactPlan *plan = (CUDPPCompactPlan*)CUDPPPlanManager::GetPlan(planHandle);
     if (plan != NULL)
     {
         cudppCompactDispatch(d_out, d_numValidElements, d_in, d_isValid, 
-            numElements, plan);
+            numElements, stream, plan);
         return CUDPP_SUCCESS;
     }
     else

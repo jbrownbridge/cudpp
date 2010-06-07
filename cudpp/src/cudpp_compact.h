@@ -32,6 +32,7 @@ void cudppCompactDispatch(void                   *d_out,
                           const void             *d_in, 
                           const unsigned int     *d_isValid,
                           size_t                 numElements,
+                          const cudaStream_t     stream,
                           const CUDPPCompactPlan *plan);
 
 #endif // _CUDPP_COMPACT_H_

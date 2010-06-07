@@ -31,6 +31,7 @@ void cudppScanDispatch(void                *d_out,
                        const void          *d_in, 
                        size_t              numElements,
                        size_t              numRows,
+                       const cudaStream_t  stream,
                        const CUDPPScanPlan *plan);
 
 #endif // _CUDPP_SCAN_H_

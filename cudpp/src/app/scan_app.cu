@@ -67,6 +67,7 @@
   * @param[in]  rowPitches  Array of row pitches (one array per recursive level, allocated by 
   *                         allocScanStorage())
   * @param[in]  level       The current recursive level of the scan
+  * @param[in]  stream      The stream to execute the kernel on
   */
 template <class T, bool isBackward, bool isExclusive, CUDPPOperator op>
 void scanArrayRecursive(T                   *d_out, 
@@ -75,7 +76,8 @@ void scanArrayRecursive(T                   *d_out,
                         size_t              numElements,
                         size_t              numRows,
                         const size_t        *rowPitches,
-                        int                 level)
+                        int                 level,
+                        const cudaStream_t  stream)
 {
     unsigned int numBlocks = 
         max(1, (unsigned int)ceil((double)numElements / ((double)SCAN_ELTS_PER_THREAD * CTA_SIZE)));
@@ -112,42 +114,42 @@ void scanArrayRecursive(T                   *d_out,
     {
     case 0: // single block, single row, non-full block
         scan4<T, ScanTraits<T, op, isBackward, isExclusive, false, false, false> >
-               <<< grid, threads, sharedMemSize >>>
+               <<< grid, threads, sharedMemSize, stream >>>
                (d_out, d_in, 0, numElements, rowPitch, blockSumRowPitch);
         break;
     case 1: // multiblock, single row, non-full block
         scan4< T, ScanTraits<T, op, isBackward, isExclusive, false, true, false> >
-               <<< grid, threads, sharedMemSize >>>
+               <<< grid, threads, sharedMemSize, stream >>>
                (d_out, d_in, d_blockSums[level], numElements, rowPitch, blockSumRowPitch);
         break;
     case 2: // single block, multirow, non-full block
         scan4<T, ScanTraits<T, op, isBackward, isExclusive, true, false, false> >
-                <<< grid, threads, sharedMemSize >>>
+                <<< grid, threads, sharedMemSize, stream >>>
                 (d_out, d_in, 0, numElements, rowPitch, blockSumRowPitch);
         break;
     case 3: // multiblock, multirow, non-full block
         scan4<T, ScanTraits<T, op, isBackward, isExclusive, true, true, false> >
-                <<< grid, threads, sharedMemSize >>>
+                <<< grid, threads, sharedMemSize, stream >>>
                 (d_out, d_in, d_blockSums[level], numElements, rowPitch, blockSumRowPitch);
         break;
     case 4: // single block, single row, full block
         scan4<T, ScanTraits<T, op, isBackward, isExclusive, false, false, true> >
-               <<< grid, threads, sharedMemSize >>>
+               <<< grid, threads, sharedMemSize, stream >>>
                (d_out, d_in, 0, numElements, rowPitch, blockSumRowPitch);
         break;
     case 5: // multiblock, single row, full block
         scan4< T, ScanTraits<T, op, isBackward, isExclusive, false, true, true> >
-               <<< grid, threads, sharedMemSize >>>
+               <<< grid, threads, sharedMemSize, stream >>>
                (d_out, d_in, d_blockSums[level], numElements, rowPitch, blockSumRowPitch);
         break;
     case 6: // single block, multirow, full block
         scan4<T, ScanTraits<T, op, isBackward, isExclusive, true, false, true> >
-                <<< grid, threads, sharedMemSize >>>
+                <<< grid, threads, sharedMemSize, stream >>>
                 (d_out, d_in, 0, numElements, rowPitch, blockSumRowPitch);
         break;
     case 7: // multiblock, multirow, full block
         scan4<T, ScanTraits<T, op, isBackward, isExclusive, true, true, true> >
-                <<< grid, threads, sharedMemSize >>>
+                <<< grid, threads, sharedMemSize, stream >>>
                 (d_out, d_in, d_blockSums[level], numElements, rowPitch, blockSumRowPitch);
         break;
     }
@@ -163,10 +165,10 @@ void scanArrayRecursive(T                   *d_out,
 
         scanArrayRecursive<T, isBackward, true, op>
             ((T*)d_blockSums[level], (const T*)d_blockSums[level],
-             (T**)d_blockSums, numBlocks, numRows, rowPitches, level + 1); // recursive (CPU) call
+             (T**)d_blockSums, numBlocks, numRows, rowPitches, level + 1, stream); // recursive (CPU) call
         
         vectorAddUniform4<T, op, SCAN_ELTS_PER_THREAD>
-            <<< grid, threads >>>(d_out, 
+            <<< grid, threads,0, stream >>>(d_out, 
                                   (T*)d_blockSums[level], 
                                   numElements,
                                   rowPitch*4,
@@ -316,6 +318,7 @@ void freeScanStorage(CUDPPScanPlan *plan)
   * @param[in]  d_in     The input array
   * @param[in]  numElements The number of elements to scan
   * @param[in]  numRows     The number of rows to scan in parallel
+  * @param[in[  stream   The stream to execute the kernel on
   * @param[in]  plan     Pointer to CUDPPScanPlan object containing scan options
   *                      and intermediate storage
   */
@@ -323,6 +326,7 @@ void cudppScanDispatch(void                *d_out,
                        const void          *d_in, 
                        size_t              numElements,
                        size_t              numRows,
+                       const cudaStream_t  stream,
                        const CUDPPScanPlan *plan)
 {    
     if (CUDPP_OPTION_EXCLUSIVE & plan->m_config.options)
@@ -339,25 +343,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<int, true, true, CUDPP_ADD>
                         ((int*)d_out, (const int*)d_in, 
                          (int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:
                     scanArrayRecursive<int, true, true, CUDPP_MULTIPLY>
                         ((int*)d_out, (const int*)d_in, 
                         (int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<int, true, true, CUDPP_MAX>
                         ((int*)d_out, (const int*)d_in, 
                          (int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<int, true, true, CUDPP_MIN>
                         ((int*)d_out, (const int*)d_in, 
                         (int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -372,25 +376,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<unsigned int, true, true, CUDPP_ADD>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                          (unsigned int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:                 
                     scanArrayRecursive<unsigned int, true, true, CUDPP_MULTIPLY>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                         (unsigned int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<unsigned int, true, true, CUDPP_MAX>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                          (unsigned int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<unsigned int, true, true, CUDPP_MIN>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                         (unsigned int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -405,25 +409,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<float, true, true,  CUDPP_ADD>
                         ((float*)d_out, (const float*)d_in, 
                          (float**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:
                     scanArrayRecursive<float, true, true,  CUDPP_MULTIPLY>
                         ((float*)d_out, (const float*)d_in, 
                         (float**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<float, true, true, CUDPP_MAX>
                         ((float*)d_out, (const float*)d_in, 
                          (float**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<float, true, true, CUDPP_MIN>
                         ((float*)d_out, (const float*)d_in, 
                         (float**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -446,25 +450,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<int, false, true, CUDPP_ADD>
                         ((int*)d_out, (const int*)d_in, 
                          (int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:
                     scanArrayRecursive<int, false, true, CUDPP_MULTIPLY>
                         ((int*)d_out, (const int*)d_in, 
                         (int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<int, false, true, CUDPP_MAX>
                         ((int*)d_out, (const int*)d_in, 
                          (int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<int, false, true, CUDPP_MIN>
                         ((int*)d_out, (const int*)d_in, 
                         (int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -479,25 +483,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<unsigned int, false, true, CUDPP_ADD>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                          (unsigned int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:                 
                     scanArrayRecursive<unsigned int, false, true, CUDPP_MULTIPLY>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                         (unsigned int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<unsigned int, false, true, CUDPP_MAX>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                          (unsigned int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<unsigned int, false, true, CUDPP_MIN>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                         (unsigned int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -513,25 +517,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<float, false, true, CUDPP_ADD>
                         ((float*)d_out, (const float*)d_in, 
                          (float**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:
                     scanArrayRecursive<float, false, true, CUDPP_MULTIPLY>
                         ((float*)d_out, (const float*)d_in, 
                         (float**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<float, false, true, CUDPP_MAX>
                         ((float*)d_out, (const float*)d_in, 
                          (float**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<float, false, true, CUDPP_MIN>
                         ((float*)d_out, (const float*)d_in, 
                         (float**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -557,25 +561,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<int, true, false, CUDPP_ADD>
                         ((int*)d_out, (const int*)d_in, 
                          (int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:
                     scanArrayRecursive<int, true, false, CUDPP_MULTIPLY>
                         ((int*)d_out, (const int*)d_in, 
                         (int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<int, true, false, CUDPP_MAX>
                         ((int*)d_out, (const int*)d_in, 
                          (int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<int, true, false, CUDPP_MIN>
                         ((int*)d_out, (const int*)d_in, 
                         (int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -590,25 +594,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<unsigned int, true, false, CUDPP_ADD>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                          (unsigned int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:                 
                     scanArrayRecursive<unsigned int, true, false, CUDPP_MULTIPLY>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                         (unsigned int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<unsigned int, true, false, CUDPP_MAX>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                          (unsigned int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<unsigned int, true, false, CUDPP_MIN>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                         (unsigned int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -623,25 +627,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<float, true, false, CUDPP_ADD>
                         ((float*)d_out, (const float*)d_in, 
                          (float**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:
                     scanArrayRecursive<float, true, false, CUDPP_MULTIPLY>
                         ((float*)d_out, (const float*)d_in, 
                         (float**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<float, true, false, CUDPP_MAX>
                         ((float*)d_out, (const float*)d_in, 
                          (float**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<float, true, false, CUDPP_MIN>
                         ((float*)d_out, (const float*)d_in, 
                         (float**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -664,25 +668,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<int, false, false, CUDPP_ADD>
                         ((int*)d_out, (const int*)d_in, 
                          (int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:
                     scanArrayRecursive<int, false, false, CUDPP_MULTIPLY>
                         ((int*)d_out, (const int*)d_in, 
                         (int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<int, false, false, CUDPP_MAX>
                         ((int*)d_out, (const int*)d_in, 
                          (int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<int, false, false, CUDPP_MIN>
                         ((int*)d_out, (const int*)d_in, 
                         (int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -697,25 +701,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<unsigned int, false, false, CUDPP_ADD>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                          (unsigned int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:                 
                     scanArrayRecursive<unsigned int, false, false, CUDPP_MULTIPLY>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                         (unsigned int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<unsigned int, false, false, CUDPP_MAX>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                          (unsigned int**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<unsigned int, false, false, CUDPP_MIN>
                         ((unsigned int*)d_out, (const unsigned int*)d_in, 
                         (unsigned int**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;
@@ -731,25 +735,25 @@ void cudppScanDispatch(void                *d_out,
                     scanArrayRecursive<float, false, false, CUDPP_ADD>
                         ((float*)d_out, (const float*)d_in, 
                          (float**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MULTIPLY:
                     scanArrayRecursive<float, false, false, CUDPP_MULTIPLY>
                         ((float*)d_out, (const float*)d_in, 
                         (float**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MAX:
                     scanArrayRecursive<float, false, false, CUDPP_MAX>
                         ((float*)d_out, (const float*)d_in, 
                          (float**)plan->m_blockSums, 
-                         numElements, numRows, plan->m_rowPitches, 0);
+                         numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 case CUDPP_MIN:
                     scanArrayRecursive<float, false, false, CUDPP_MIN>
                         ((float*)d_out, (const float*)d_in, 
                         (float**)plan->m_blockSums, 
-                        numElements, numRows, plan->m_rowPitches, 0);
+                        numElements, numRows, plan->m_rowPitches, 0, stream);
                     break;
                 default:
                     break;

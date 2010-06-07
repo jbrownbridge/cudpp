@@ -301,6 +301,7 @@
 #define __CUDPP_H__
 
 #include <stdlib.h> // for size_t
+#include <cuda_runtime.h> // for cudaStream_t
 
 #ifdef __cplusplus
 extern "C" {
@@ -449,24 +450,27 @@ CUDPPResult cudppDestroyPlan(CUDPPHandle plan);
 // Scan and sort algorithms
 
 CUDPP_DLL
-CUDPPResult cudppScan(CUDPPHandle planHandle,
-                      void        *d_out, 
-                      const void  *d_in, 
-                      size_t      numElements);
+CUDPPResult cudppScan(CUDPPHandle        planHandle,
+                      void               *d_out, 
+                      const void         *d_in, 
+                      size_t             numElements,
+                      const cudaStream_t stream = 0);
 
 CUDPP_DLL
-CUDPPResult cudppMultiScan(CUDPPHandle planHandle,
-                           void        *d_out, 
-                           const void  *d_in, 
-                           size_t      numElements,
-                           size_t      numRows);
+CUDPPResult cudppMultiScan(CUDPPHandle        planHandle,
+                           void               *d_out, 
+                           const void         *d_in, 
+                           size_t             numElements,
+                           size_t             numRows,
+                           const cudaStream_t stream = 0);
 
 CUDPP_DLL
 CUDPPResult cudppSegmentedScan(CUDPPHandle        planHandle,
                                void               *d_out, 
                                const void         *d_idata,
                                const unsigned int *d_iflags,
-                               size_t             numElements);
+                               size_t             numElements,
+                               const cudaStream_t stream = 0);
 
 CUDPP_DLL
 CUDPPResult cudppCompact(CUDPPHandle        planHandle,
@@ -474,7 +478,8 @@ CUDPPResult cudppCompact(CUDPPHandle        planHandle,
                          size_t             *d_numValidElements,
                          const void         *d_in, 
                          const unsigned int *d_isValid,
-                         size_t             numElements);
+                         size_t             numElements,
+                         const cudaStream_t stream = 0);
 
 CUDPP_DLL
 CUDPPResult cudppSort(CUDPPHandle planHandle,

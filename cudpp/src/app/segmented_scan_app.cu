@@ -85,6 +85,7 @@
 * element of a min operator)
 * @param[in] numElements The number of elements in the array to scan
 * @param[in] level The current recursive level of the scan
+* @param[in] stream The stream to execute the kernel on
 */
 template <class T, CUDPPOperator op, bool isBackward, bool isExclusive, bool doShiftFlagsLeft>
 void segmentedScanArrayRecursive(T                  *d_out, 
@@ -94,7 +95,8 @@ void segmentedScanArrayRecursive(T                  *d_out,
                                  unsigned int       **d_blockFlags,
                                  unsigned int       **d_blockIndices,
                                  int                numElements,
-                                 int                level)
+                                 int                level,
+                                 const cudaStream_t stream)
 {
     unsigned int numBlocks = 
         max(1, (int)ceil((double)numElements / 
@@ -145,13 +147,13 @@ void segmentedScanArrayRecursive(T                  *d_out,
     case 0: // single block, single row, non-full last block
         segmentedScan4<T, SegmentedScanTraits<T, op, isBackward, isExclusive, doShiftFlagsLeft, false, false,
                        false> >
-            <<< grid, threads, sharedMemSize >>>
+            <<< grid, threads, sharedMemSize, stream >>>
             (d_out, d_idata, d_iflags, numElements, 0, 0, 0);
         break;
     case 1: // multi block, single row, non-full last block
         segmentedScan4<T, SegmentedScanTraits<T, op, isBackward, isExclusive, doShiftFlagsLeft, false, true,
                        false> >
-            <<< grid, threads, sharedMemSize >>>
+            <<< grid, threads, sharedMemSize, stream >>>
             (d_out, d_idata, d_iflags, numElements,
             d_blockSums[level], d_blockFlags[level],
             d_blockIndices[level]);
@@ -159,13 +161,13 @@ void segmentedScanArrayRecursive(T                  *d_out,
     case 2: // single block, single row, full last block
         segmentedScan4<T, SegmentedScanTraits<T, op, isBackward, isExclusive, doShiftFlagsLeft, true, false,
                        false> >
-            <<< grid, threads, sharedMemSize >>>
+            <<< grid, threads, sharedMemSize, stream >>>
             (d_out, d_idata, d_iflags, numElements, 0, 0, 0);
         break;
     case 3: // multi block, single row, full last block
         segmentedScan4<T, SegmentedScanTraits<T, op, isBackward, isExclusive, doShiftFlagsLeft, true, true,
                        false> >
-            <<< grid, threads, sharedMemSize >>>
+            <<< grid, threads, sharedMemSize, stream >>>
             (d_out, d_idata, d_iflags, numElements,
             d_blockSums[level], d_blockFlags[level],
             d_blockIndices[level]);
@@ -173,13 +175,13 @@ void segmentedScanArrayRecursive(T                  *d_out,
     case 4: // single block, single row, non-full last block
         segmentedScan4<T, SegmentedScanTraits<T, op, isBackward, isExclusive, doShiftFlagsLeft, false, false,
                        true> >
-            <<< grid, threads, sharedMemSize >>>
+            <<< grid, threads, sharedMemSize, stream >>>
             (d_out, d_idata, d_iflags, numElements, 0, 0, 0);
         break;
     case 5: // multi block, single row, non-full last block
         segmentedScan4<T, SegmentedScanTraits<T, op, isBackward, isExclusive, doShiftFlagsLeft, false, true,
                        true> >
-            <<< grid, threads, sharedMemSize >>>
+            <<< grid, threads, sharedMemSize, stream >>>
             (d_out, d_idata, d_iflags, numElements,
             d_blockSums[level], d_blockFlags[level],
             d_blockIndices[level]);
@@ -187,13 +189,13 @@ void segmentedScanArrayRecursive(T                  *d_out,
     case 6: // single block, single row, full last block
         segmentedScan4<T, SegmentedScanTraits<T, op, isBackward, isExclusive, doShiftFlagsLeft, true, false,
                        true> >
-            <<< grid, threads, sharedMemSize >>>
+            <<< grid, threads, sharedMemSize, stream >>>
             (d_out, d_idata, d_iflags, numElements, 0, 0, 0);
         break;
     case 7: // multi block, single row, full last block
         segmentedScan4<T, SegmentedScanTraits<T, op, isBackward, isExclusive, doShiftFlagsLeft, true, true,
                        true> >
-            <<< grid, threads, sharedMemSize >>>
+            <<< grid, threads, sharedMemSize, stream >>>
             (d_out, d_idata, d_iflags, numElements,
             d_blockSums[level], d_blockFlags[level],
             d_blockIndices[level]);
@@ -213,27 +215,27 @@ void segmentedScanArrayRecursive(T                  *d_out,
             ((T*)d_blockSums[level], (const T*)d_blockSums[level], 
             d_blockFlags[level], (T **)d_blockSums,
             d_blockFlags, d_blockIndices,
-            numBlocks, level + 1);
+            numBlocks, level + 1, stream);
 
         if (isBackward)
         {
             if (fullBlock)
-                vectorSegmentedAddUniformToRight4<T, op, true><<<grid, threads>>>
+                vectorSegmentedAddUniformToRight4<T, op, true><<<grid, threads, 0, stream>>>
                 (d_out, d_blockSums[level], d_blockIndices[level], 
                 numElements, 0, 0);
             else
-                vectorSegmentedAddUniformToRight4<T, op, false><<<grid, threads>>>
+                vectorSegmentedAddUniformToRight4<T, op, false><<<grid, threads, 0, stream>>>
                 (d_out, d_blockSums[level], d_blockIndices[level], 
                 numElements, 0, 0);
         }
         else
         {
             if (fullBlock)
-                vectorSegmentedAddUniform4<T, op, true><<<grid, threads>>>
+                vectorSegmentedAddUniform4<T, op, true><<<grid, threads, 0, stream>>>
                 (d_out, d_blockSums[level], d_blockIndices[level], 
                 numElements, 0, 0);
             else
-                vectorSegmentedAddUniform4<T, op, false><<<grid, threads>>>
+                vectorSegmentedAddUniform4<T, op, false><<<grid, threads, 0, stream>>>
                 (d_out, d_blockSums[level], d_blockIndices[level], 
                 numElements, 0, 0);
         }
@@ -376,6 +378,7 @@ extern "C"
     * specified in \a plan. 
     * 
     * @param[in]  numElements The number of elements to scan
+    * @param[in]  stream      The stream to execute the kernel on
     * @param[in]  plan        Segmented Scan configuration (plan), initialized 
     *                         by CUDPPSegmentedScanPlan constructor
     * @param[in]  d_idata     The input array
@@ -383,10 +386,12 @@ extern "C"
 
     * @param[out] d_out    The output array of segmented scan results
     */
-    void cudppSegmentedScanDispatch (void                         *d_out, 
+    void cudppSegmentedScanDispatch (
+        void                         *d_out, 
         const void                   *d_idata,
         const unsigned int           *d_iflags,
         int                          numElements,
+        const cudaStream_t           stream,
         const CUDPPSegmentedScanPlan *plan
         )
     {    
@@ -403,25 +408,25 @@ extern "C"
                         segmentedScanArrayRecursive<int, CUDPP_MAX, true, true, true>
                             ((int *)d_out, (int *)d_idata, d_iflags, 
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<int, CUDPP_ADD, true, true, true>
                             ((int *)d_out, (int *)d_idata, d_iflags, 
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<int, CUDPP_MULTIPLY, true, true, true>
                             ((int *)d_out, (int *)d_idata, d_iflags, 
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<int, CUDPP_MIN, true, true, true>
                             ((int *)d_out, (int *)d_idata, d_iflags, 
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -434,25 +439,25 @@ extern "C"
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MAX, true, true, true>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags, 
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_ADD, true, true, true>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags, 
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MULTIPLY, true, true, true>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags, 
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MIN, true, true, true>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags, 
                         (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                        plan->m_blockIndices, numElements, 0);
+                        plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -465,25 +470,25 @@ extern "C"
                         segmentedScanArrayRecursive<float, CUDPP_MAX, true, true, true>
                             ((float *)d_out, (float *)d_idata, d_iflags, 
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<float, CUDPP_ADD, true, true, true>
                             ((float *)d_out, (float *)d_idata, d_iflags, 
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<float, CUDPP_MULTIPLY, true, true, true>
                             ((float *)d_out, (float *)d_idata, d_iflags, 
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<float, CUDPP_MIN, true, true, true>
                             ((float *)d_out, (float *)d_idata, d_iflags, 
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -504,25 +509,25 @@ extern "C"
                         segmentedScanArrayRecursive<int, CUDPP_MAX, false, true, false>
                             ((int *)d_out, (int *)d_idata, d_iflags, 
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<int, CUDPP_ADD, false, true, false>
                             ((int *)d_out, (int *)d_idata, d_iflags, 
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<int, CUDPP_MULTIPLY, false, true, false>
                             ((int *)d_out, (int *)d_idata, d_iflags, 
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<int, CUDPP_MIN, false, true, false>
                             ((int *)d_out, (int *)d_idata, d_iflags, 
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -535,25 +540,25 @@ extern "C"
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MAX, false, true, false>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags, 
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_ADD, false, true, false>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags, 
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MULTIPLY, false, true, false>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags, 
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MIN, false, true, false>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags, 
                         (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                        plan->m_blockIndices, numElements, 0);
+                        plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -566,25 +571,25 @@ extern "C"
                         segmentedScanArrayRecursive<float, CUDPP_MAX, false, true, false>
                             ((float *)d_out, (float *)d_idata, d_iflags, 
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<float, CUDPP_ADD, false, true, false>
                             ((float *)d_out, (float *)d_idata, d_iflags, 
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<float, CUDPP_MULTIPLY, false, true, false>
                             ((float *)d_out, (float *)d_idata, d_iflags, 
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<float, CUDPP_MIN, false, true, false>
                             ((float *)d_out, (float *)d_idata, d_iflags, 
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -608,25 +613,25 @@ extern "C"
                         segmentedScanArrayRecursive<int, CUDPP_MAX, true, false, true>
                             ((int *)d_out, (int *)d_idata, d_iflags,
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<int, CUDPP_ADD, true, false, true>
                             ((int *)d_out, (int *)d_idata, d_iflags,
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<int, CUDPP_MULTIPLY, true, false, true>
                             ((int *)d_out, (int *)d_idata, d_iflags,
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<int, CUDPP_MIN, true, false, true>
                             ((int *)d_out, (int *)d_idata, d_iflags,
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -639,25 +644,25 @@ extern "C"
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MAX, true, false, true>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags,
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_ADD, true, false, true>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags,
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MULTIPLY, true, false, true>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags,
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MIN, true, false, true>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags,
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -670,25 +675,25 @@ extern "C"
                         segmentedScanArrayRecursive<float, CUDPP_MAX, true, false, true>
                             ((float *)d_out, (float *)d_idata, d_iflags,
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<float, CUDPP_ADD, true, false, true>
                             ((float *)d_out, (float *)d_idata, d_iflags,
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<float, CUDPP_MULTIPLY, true, false, true>
                             ((float *)d_out, (float *)d_idata, d_iflags,
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<float, CUDPP_MIN, true, false, true>
                             ((float *)d_out, (float *)d_idata, d_iflags,
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -709,25 +714,25 @@ extern "C"
                         segmentedScanArrayRecursive<int, CUDPP_MAX, false, false, false>
                             ((int *)d_out, (int *)d_idata, d_iflags,
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<int, CUDPP_ADD, false, false, false>
                             ((int *)d_out, (int *)d_idata, d_iflags,
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<int, CUDPP_MULTIPLY, false, false, false>
                             ((int *)d_out, (int *)d_idata, d_iflags,
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<int, CUDPP_MIN, false, false, false>
                             ((int *)d_out, (int *)d_idata, d_iflags,
                             (int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -740,25 +745,25 @@ extern "C"
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MAX, false, false, false>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags,
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_ADD, false, false, false>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags,
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MULTIPLY, false, false, false>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags,
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<unsigned int, CUDPP_MIN, false, false, false>
                             ((unsigned int *)d_out, (unsigned int *)d_idata, d_iflags,
                             (unsigned int **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;
@@ -771,25 +776,25 @@ extern "C"
                         segmentedScanArrayRecursive<float, CUDPP_MAX, false, false, false>
                             ((float *)d_out, (float *)d_idata, d_iflags,
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_ADD:
                         segmentedScanArrayRecursive<float, CUDPP_ADD, false, false, false>
                             ((float *)d_out, (float *)d_idata, d_iflags,
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MULTIPLY:
                         segmentedScanArrayRecursive<float, CUDPP_MULTIPLY, false, false, false>
                             ((float *)d_out, (float *)d_idata, d_iflags,
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     case CUDPP_MIN:
                         segmentedScanArrayRecursive<float, CUDPP_MIN, false, false, false>
                             ((float *)d_out, (float *)d_idata, d_iflags,
                             (float **)plan->m_blockSums, plan->m_blockFlags,
-                            plan->m_blockIndices, numElements, 0);
+                            plan->m_blockIndices, numElements, 0, stream);
                         break;
                     default:
                         break;

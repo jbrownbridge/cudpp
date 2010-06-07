@@ -99,6 +99,7 @@ void calculatCompactLaunchParams(const unsigned int numElements,
   * @param[out] d_isValid     Array of flags, 1 for each non-null element, 0 
   *                           for each null element. Same length as \a d_in
   * @param[in]  numElements   Number of elements in input array
+  * @param[in]  stream        The stream to execute the kernel on
   * @param[in]  plan          Pointer to the plan object used for this compact
   *
   */
@@ -108,6 +109,7 @@ void compactArray(T                      *d_out,
                   const T                *d_in, 
                   const unsigned int     *d_isValid,
                   size_t                 numElements,
+                  const cudaStream_t     stream,
                   const CUDPPCompactPlan *plan)
 {
     unsigned int numThreads = 0;
@@ -121,17 +123,17 @@ void compactArray(T                      *d_out,
     // Run prefix sum on isValid array to find the addresses in the compacted
     // output array where each non-null element of d_in will go to
     cudppScanDispatch((void*)plan->m_d_outputIndices, (void*)d_isValid, 
-                      numElements, 1, plan->m_scanPlan);
+                      numElements, 1, stream, plan->m_scanPlan);
 
     // For every non-null element in d_in write it to its proper place in the
     // d_out. This is indicated by the corresponding element in isValid array
     if (plan->m_config.options & CUDPP_OPTION_BACKWARD)
-        compactData<T, true><<<numBlocks, numThreads>>>(d_out,
+        compactData<T, true><<<numBlocks, numThreads, 0, stream>>>(d_out,
                                                         d_numValidElements,
                                                         plan->m_d_outputIndices, 
                                                         d_isValid, d_in, numElements);
     else
-        compactData<T, false><<<numBlocks, numThreads>>>(d_out, 
+        compactData<T, false><<<numBlocks, numThreads, 0, stream>>>(d_out, 
                                                          d_numValidElements,
                                                          plan->m_d_outputIndices, 
                                                          d_isValid, d_in, numElements);
@@ -183,39 +185,41 @@ void freeCompactStorage(CUDPPCompactPlan *plan)
  * @param[in]  d_isValid     Array of boolean valid flags with same length as 
  *                           \a d_in
  * @param[in]  numElements   Number of elements to compact
+ * @param[in]  stream        Stream to execute the kernel on
  * @param[in]  plan          Pointer to plan object for this compact
- 
+ * 
  */
 void cudppCompactDispatch(void                   *d_out, 
                           size_t                 *d_numValidElements,
                           const void             *d_in, 
                           const unsigned int     *d_isValid,
                           size_t                 numElements,
+                          const cudaStream_t     stream,
                           const CUDPPCompactPlan *plan)
 {
     switch (plan->m_config.datatype)
     {
     case CUDPP_CHAR:
         compactArray<char>((char*)d_out, d_numValidElements, 
-                           (const char*)d_in, d_isValid, numElements, plan);
+                           (const char*)d_in, d_isValid, numElements, stream, plan);
         break;
     case CUDPP_UCHAR:
         compactArray<unsigned char>((unsigned char*)d_out, d_numValidElements, 
                                     (const unsigned char*)d_in, d_isValid, 
-                                    numElements, plan);
+                                    numElements, stream, plan);
         break;
     case CUDPP_INT:
         compactArray<int>((int*)d_out, d_numValidElements, 
-                          (const int*)d_in, d_isValid, numElements, plan);
+                          (const int*)d_in, d_isValid, numElements, stream, plan);
         break;
     case CUDPP_UINT:
         compactArray<unsigned int>((unsigned int*)d_out, d_numValidElements, 
                                    (const unsigned int*)d_in, d_isValid, 
-                                   numElements, plan);
+                                   numElements, stream, plan);
         break;
     case CUDPP_FLOAT:
         compactArray<float>((float*)d_out, d_numValidElements, 
-                            (const float*)d_in, d_isValid, numElements, plan);
+                            (const float*)d_in, d_isValid, numElements, stream, plan);
         break;
     default:
         break;

@@ -31,6 +31,7 @@ void cudppSegmentedScanDispatch(void                   *d_out,
                                 const void             *d_idata,
                                 const unsigned int     *d_iflags,
                                 size_t                 numElements,
+                                const cudaStream_t     stream,
                                 const CUDPPSegmentedScanPlan *plan);
 
 #endif // _CUDPP_SEGMENTEDSCAN_H_
