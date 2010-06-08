@@ -335,7 +335,7 @@ void cudppScanDispatch(void                *d_out,
         {
             switch (plan->m_config.datatype)
             {
-            case CUDPP_INT:
+            /*case CUDPP_INT:
 
                 switch(plan->m_config.op)
                 {
@@ -400,7 +400,7 @@ void cudppScanDispatch(void                *d_out,
                     break;
                 }
 
-                break;
+                break;*/
 
             case CUDPP_FLOAT:
                 switch(plan->m_config.op)
@@ -442,7 +442,7 @@ void cudppScanDispatch(void                *d_out,
         {
             switch (plan->m_config.datatype)
             {
-            case CUDPP_INT:
+            /*case CUDPP_INT:
 
                 switch(plan->m_config.op)
                 {
@@ -508,7 +508,7 @@ void cudppScanDispatch(void                *d_out,
                             
                 }
         
-                break;       
+                break;  */     
             
             case CUDPP_FLOAT:
                 switch(plan->m_config.op)
@@ -553,7 +553,7 @@ void cudppScanDispatch(void                *d_out,
         {
             switch (plan->m_config.datatype)
             {
-            case CUDPP_INT:
+            /*case CUDPP_INT:
 
                 switch(plan->m_config.op)
                 {
@@ -618,7 +618,7 @@ void cudppScanDispatch(void                *d_out,
                     break;
                 }
 
-                break;
+                break;*/
 
             case CUDPP_FLOAT:
                 switch(plan->m_config.op)
@@ -660,7 +660,7 @@ void cudppScanDispatch(void                *d_out,
         {
             switch (plan->m_config.datatype)
             {
-            case CUDPP_INT:
+            /*case CUDPP_INT:
 
                 switch(plan->m_config.op)
                 {
@@ -726,7 +726,7 @@ void cudppScanDispatch(void                *d_out,
                             
                 }
         
-                break;       
+                break;*/     
             
             case CUDPP_FLOAT:
                 switch(plan->m_config.op)

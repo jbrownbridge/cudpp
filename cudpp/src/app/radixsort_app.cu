@@ -960,7 +960,7 @@ void cudppRadixSortDispatch(void  *keys,
                             size_t numElements,
                             int   keyBits,
                             const CUDPPRadixSortPlan *plan)
-{              
+{/*              
     if(plan->m_bKeysOnly)
     {
         switch(plan->m_config.datatype)
@@ -986,7 +986,7 @@ void cudppRadixSortDispatch(void  *keys,
             radixSortFloatKeys((float*)keys, (uint*) values, plan, 
                                numElements, true, keyBits);
         }
-    }
+    }*/
 }                            
 
 /** @} */ // end radixsort functions

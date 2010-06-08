@@ -401,7 +401,7 @@ extern "C"
             {
                 switch(plan->m_config.datatype)
                 {
-                case CUDPP_INT:
+                /*case CUDPP_INT:
                     switch(plan->m_config.op)
                     {
                     case CUDPP_MAX:
@@ -462,7 +462,7 @@ extern "C"
                     default:
                         break;
                     }
-                    break;
+                    break;*/
                 case CUDPP_FLOAT:
                     switch(plan->m_config.op)
                     {
@@ -502,7 +502,7 @@ extern "C"
             {
                 switch(plan->m_config.datatype)
                 {
-                case CUDPP_INT:
+                /*case CUDPP_INT:
                     switch(plan->m_config.op)
                     {
                     case CUDPP_MAX:
@@ -563,7 +563,7 @@ extern "C"
                     default:
                         break;
                     }
-                    break;
+                    break;*/
                 case CUDPP_FLOAT:
                     switch(plan->m_config.op)
                     {
@@ -606,7 +606,7 @@ extern "C"
             {
                 switch(plan->m_config.datatype)
                 {
-                case CUDPP_INT:
+                /*case CUDPP_INT:
                     switch(plan->m_config.op)
                     {
                     case CUDPP_MAX:
@@ -667,7 +667,7 @@ extern "C"
                     default:
                         break;
                     }
-                    break;
+                    break;*/
                 case CUDPP_FLOAT:
                     switch(plan->m_config.op)
                     {
@@ -707,7 +707,7 @@ extern "C"
             {
                 switch(plan->m_config.datatype)
                 {
-                case CUDPP_INT:
+                /*case CUDPP_INT:
                     switch(plan->m_config.op)
                     {
                     case CUDPP_MAX:
@@ -768,7 +768,7 @@ extern "C"
                     default:
                         break;
                     }
-                    break;
+                    break;*/
                 case CUDPP_FLOAT:
                     switch(plan->m_config.op)
                     {

@@ -454,7 +454,7 @@ CUDPPResult cudppScan(CUDPPHandle        planHandle,
                       void               *d_out, 
                       const void         *d_in, 
                       size_t             numElements,
-                      const cudaStream_t stream = 0);
+                      const cudaStream_t stream);
 
 CUDPP_DLL
 CUDPPResult cudppMultiScan(CUDPPHandle        planHandle,
@@ -462,7 +462,7 @@ CUDPPResult cudppMultiScan(CUDPPHandle        planHandle,
                            const void         *d_in, 
                            size_t             numElements,
                            size_t             numRows,
-                           const cudaStream_t stream = 0);
+                           const cudaStream_t stream);
 
 CUDPP_DLL
 CUDPPResult cudppSegmentedScan(CUDPPHandle        planHandle,
@@ -470,7 +470,7 @@ CUDPPResult cudppSegmentedScan(CUDPPHandle        planHandle,
                                const void         *d_idata,
                                const unsigned int *d_iflags,
                                size_t             numElements,
-                               const cudaStream_t stream = 0);
+                               const cudaStream_t stream);
 
 CUDPP_DLL
 CUDPPResult cudppCompact(CUDPPHandle        planHandle,
@@ -479,7 +479,7 @@ CUDPPResult cudppCompact(CUDPPHandle        planHandle,
                          const void         *d_in, 
                          const unsigned int *d_isValid,
                          size_t             numElements,
-                         const cudaStream_t stream = 0);
+                         const cudaStream_t stream);
 
 CUDPP_DLL
 CUDPPResult cudppSort(CUDPPHandle planHandle,

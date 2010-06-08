@@ -241,7 +241,7 @@ void cudppSparseMatrixVectorMultiplyDispatch (
                                               const CUDPPSparseMatrixVectorMultiplyPlan *plan
                                              )                            
 {    
-    switch(plan->m_config.datatype)
+    /*switch(plan->m_config.datatype)
     {
         case CUDPP_INT:
             sparseMatrixVectorMultiply<int>((int *)d_y, (int *)d_x, plan);
@@ -255,7 +255,7 @@ void cudppSparseMatrixVectorMultiplyDispatch (
                 break;
         default:
             break;
-    }
+    }*/
 }
 
 #ifdef __cplusplus

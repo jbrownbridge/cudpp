@@ -131,7 +131,7 @@ extern "C"
 void cudppRandDispatch(void * d_out, size_t numElements, 
                        const CUDPPRandPlan * plan)
 {
-    //switch to figure out which algorithm to run
+    /*//switch to figure out which algorithm to run
     switch(plan->m_config.algorithm)
     {
     case CUDPP_RAND_MD5:
@@ -140,7 +140,7 @@ void cudppRandDispatch(void * d_out, size_t numElements,
         break;
     default:
         break;
-    }//end switch
+    }//end switch*/
 
 }
 
