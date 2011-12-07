@@ -28,7 +28,7 @@ void freeCompactStorage(CUDPPCompactPlan* plan);
 
 extern "C"
 void cudppCompactDispatch(void                   *d_out, 
-                          size_t                 *d_numValidElements,
+                          unsigned int           *d_numValidElements,
                           const void             *d_in, 
                           const unsigned int     *d_isValid,
                           size_t                 numElements,

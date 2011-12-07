@@ -40,7 +40,7 @@
  * 
  */
 template <bool isBackward>
-__global__ void computeNumValidElements(size_t        *d_numValidElements,
+__global__ void computeNumValidElements(unsigned int        *d_numValidElements,
                                         const unsigned int  *d_indices, // Exclusive Sum-Scan Result
                                         const unsigned int  *d_isValid,
                                         size_t        numElements
@@ -69,7 +69,7 @@ __global__ void computeNumValidElements(size_t        *d_numValidElements,
  */
 template <class T, bool isBackward>
 __global__ void compactData(T                  *d_out, 
-                            size_t           *d_numValidElements,
+                            unsigned int       *d_numValidElements,
                             const unsigned int *d_indices, // Exclusive Sum-Scan Result
                             const unsigned int *d_isValid,
                             const T            *d_in,
